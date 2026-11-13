@@ -1,0 +1,58 @@
+# Hermes is trusted infrastructure running on the same trust boundary as the
+# control plane, but it still needs a narrow egress path. This is deliberately
+# explicit rather than "allow all", so a compromised skill cannot reach the
+# cluster or the LAN.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: hermes
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-hermes
+  namespace: hermes
+spec:
+  podSelector:
+    matchLabels: {app: hermes}
+  policyTypes: ["Egress"]
+  egress:
+    # DNS.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # The sandbox API, in-cluster. This is the internal path: no payment gateway
+    # in the way and no Tailscale hop. The sandbox repo's `allow-api` policy is
+    # patched in the homelab repo to admit this namespace.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: sandbox-system
+          podSelector:
+            matchLabels: {app: api}
+      ports:
+        - protocol: TCP
+          port: 3000
+
+    # Model inference (GraphN) and Signal. Both are HTTPS over the public
+    # internet; there is no in-cluster proxy in front of them.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443

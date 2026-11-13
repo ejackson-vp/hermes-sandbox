@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hermes
+  labels:
+    # Hermes is trusted infrastructure, not a tenant workload, but it still runs
+    # third-party code through the gateway. `baseline` rather than `restricted`:
+    # the image's s6 init starts as root and drops to uid 10000 itself, which
+    # `restricted` refuses.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: baseline

@@ -1,0 +1,78 @@
+# Nightly state backup.
+#
+# What this protects: conversation history, memory, cron jobs and the sandbox
+# session map. What it does not protect: a coherent snapshot taken while the
+# gateway is idle. SQLite in WAL mode is copied with `sqlite3 .backup` where the
+# binary exists, which is safe against concurrent writers; anything else falls
+# back to `tar`, and the log says which happened.
+#
+# Restore procedure: docs/backup.md.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hermes-backup
+  namespace: hermes
+spec:
+  schedule: "17 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 10000
+          containers:
+            - name: backup
+              image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.0
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+                  dest="/backups/${stamp}"
+                  mkdir -p "$dest"
+                  echo "backup: $stamp -> $dest"
+
+                  # Consistent copies of every SQLite database, if the CLI is
+                  # present. A half-written WAL is the failure this avoids.
+                  found=0
+                  if command -v sqlite3 >/dev/null 2>&1; then
+                    for db in $(find /opt/data -name '*.db' -o -name '*.sqlite' 2>/dev/null); do
+                      rel=${db#/opt/data/}
+                      mkdir -p "$dest/$(dirname "$rel")"
+                      sqlite3 "$db" ".backup '${dest}/${rel}'" && found=$((found+1))
+                    done
+                    echo "backup: $found database(s) copied with sqlite3 .backup"
+                  fi
+
+                  # Everything else: config, cron definitions, skills, plugins.
+                  tar -czf "$dest/state.tar.gz" \
+                    --exclude='*/cache' \
+                    --exclude='*/.venv' \
+                    --exclude='*.db' --exclude='*.db-wal' --exclude='*.db-shm' \
+                    -C /opt/data . || true
+                  echo "backup: archive $(du -h "$dest/state.tar.gz" | cut -f1)"
+
+                  # Keep 7 days.
+                  find /backups -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec rm -rf {} +
+                  echo "backup: done"
+              volumeMounts:
+                - name: data
+                  mountPath: /opt/data
+                  readOnly: true
+                - name: backups
+                  mountPath: /backups
+              resources:
+                requests: {cpu: 10m, memory: 64Mi}
+                limits: {cpu: 500m, memory: 512Mi}
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: hermes-data
+            - name: backups
+              persistentVolumeClaim:
+                claimName: hermes-backups

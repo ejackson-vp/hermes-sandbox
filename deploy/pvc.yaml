@@ -1,0 +1,31 @@
+# Hermes' whole durable state: conversation history, memory, cron jobs, plugin
+# config and the sandbox session map. Losing this loses the assistant's memory.
+#
+# `standard` on this cluster is local-path-provisioner, so the volume is a
+# directory on one node and is not encrypted. That is the same trade-off the
+# sandbox checkpoints make; see docs/backup.md for what it means for recovery.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hermes-data
+  namespace: hermes
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 5Gi
+---
+# Where the nightly backup job writes. Separate claim so a restore can read the
+# backups without mounting them over the live state.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hermes-backups
+  namespace: hermes
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 5Gi

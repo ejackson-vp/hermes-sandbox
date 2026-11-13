@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hermes
+  namespace: hermes
+  labels: {app: hermes}
+spec:
+  # One writer. Hermes keeps its state in SQLite on a ReadWriteOnce volume, and a
+  # second replica would corrupt it rather than share it. The gateway is
+  # restarted in place, not scaled out.
+  replicas: 1
+  strategy:
+    type: Recreate
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: {app: hermes}
+  template:
+    metadata:
+      labels: {app: hermes}
+    spec:
+      # s6-overlay runs as root, chowns /opt/data and then drops every supervised
+      # service to uid 10000 itself. Pod-level runAsNonRoot would break the
+      # chown, so the drop is the image's job and this is deliberate.
+      securityContext:
+        fsGroup: 10000
+        fsGroupChangePolicy: OnRootMismatch
+      # Never schedule next to the Kata guest pool.
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: Exists
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: hermes
+          image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.1
+          imagePullPolicy: IfNotPresent
+          # The image entrypoint is s6's dispatcher; this is its main program.
+          args: ["gateway", "run"]
+          envFrom:
+            - configMapRef:
+                name: hermes-config
+          env:
+            - name: HERMES_UID
+              value: "10000"
+            - name: HERMES_GID
+              value: "10000"
+            - name: HERMES_HOME
+              value: /opt/data
+            - name: GRAPHN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-secrets
+                  key: graphn-api-key
+                  optional: true
+          ports:
+            - name: gateway
+              containerPort: 8765
+              protocol: TCP
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+            - name: config
+              mountPath: /opt/data/config.yaml
+              subPath: config.yaml
+              readOnly: true
+          resources:
+            # Sized for a 13.5 GiB control-plane node that also runs etcd.
+            requests: {cpu: 200m, memory: 768Mi}
+            limits: {cpu: "2", memory: 2Gi}
+          # Startup and readiness only check that the gateway recorded itself.
+          # `hermes gateway status` takes several seconds (it is a fresh Python
+          # process), which is far too slow for a 1s default probe timeout, so it
+          # is reserved for liveness where it is authoritative and rare.
+          startupProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -s /opt/data/gateway.pid"]
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -s /opt/data/gateway.pid"]
+            periodSeconds: 30
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "/opt/hermes/bin/hermes gateway status >/dev/null 2>&1"]
+            periodSeconds: 120
+            timeoutSeconds: 30
+            # Generous: a busy turn must not be mistaken for a hang.
+            failureThreshold: 3
+      terminationGracePeriodSeconds: 60
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: hermes-data
+        - name: config
+          configMap:
+            name: hermes-config

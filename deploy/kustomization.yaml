@@ -1,0 +1,26 @@
+# Hermes: a persistent personal agent that runs its commands in the sandbox.
+#
+# Cluster-specific values (image tag, API URL) are patched by the homelab repo's
+# Flux Kustomization, so this overlay stays deployable on its own.
+#
+# Secrets are NOT created here. `hermes-secrets` must exist in the `hermes`
+# namespace before the pod starts; in the homelab it is SOPS-encrypted in
+# apps/hermes-secrets/. See docs/setup.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: hermes
+
+resources:
+  - namespace.yaml
+  - pvc.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - networkpolicy.yaml
+  - backup-cronjob.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: hermes
+      app.kubernetes.io/managed-by: flux
+    includeSelectors: false

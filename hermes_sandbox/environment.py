@@ -317,7 +317,12 @@ class SandboxEnvironment(BaseEnvironment):
         contract: Hermes settles background pollers as lost once cleanup has
         returned without raising.
         """
-        self.stop_all_processes()
+        # Hermes v0.23.1's BaseEnvironment has no long-lived process mixin, so
+        # this must not assume one. Newer builds gain the mixin and the call
+        # starts happening on its own.
+        stop_all = getattr(self, "stop_all_processes", None)
+        if callable(stop_all):
+            stop_all()
         with self._lock:
             if self._closed:
                 return

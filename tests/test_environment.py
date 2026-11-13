@@ -248,3 +248,17 @@ def test_bootstrap_runs_once_per_environment():
     # One bootstrap command plus the two real ones, and no repeat on the second.
     assert len(client.execs) == 3
     assert env._bootstrapped is True
+
+
+def test_cleanup_tolerates_a_base_class_without_process_mixin():
+    """Regression: v0.23.1 has no stop_all_processes on BaseEnvironment.
+
+    Calling it unconditionally made cleanup() raise AttributeError, which turned
+    every teardown into a leaked lease. On a Hermes build that does have the
+    mixin this test simply exercises the other branch.
+    """
+    client = FakeClient()
+    env = make_env(client)
+    env.execute("true")
+    env.cleanup()
+    assert client.destroyed == ["sbx_001"]

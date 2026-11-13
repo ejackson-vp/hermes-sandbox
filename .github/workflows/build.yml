@@ -1,0 +1,72 @@
+name: build
+
+# Builds the image for the homelab's architecture and pushes it to GHCR.
+#
+# The base is the upstream Hermes tag in the Dockerfile, so a build here is a
+# thin layer: ensurepip, eth-account, and the provider package. Keeping the
+# build in CI rather than on a laptop is what makes the tag reproducible.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" requests psutil ruamel.yaml
+      # The provider subclasses Hermes' BaseEnvironment, so the unit tests need a
+      # checkout of the same version the image ships.
+      - name: Fetch Hermes for the backend tests
+        run: |
+          HERMES_VERSION=$(sed -n 's/^FROM .*hermes-agent:\(.*\)$/\1/p' Dockerfile)
+          git clone --depth 1 --branch "$HERMES_VERSION" \
+            https://github.com/NousResearch/hermes-agent.git "$RUNNER_TEMP/hermes"
+      - name: Tests
+        env:
+          HERMES_SRC: ${{ runner.temp }}/hermes
+        run: python -m pytest tests -q --ignore=tests/integration
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=sha,format=short
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

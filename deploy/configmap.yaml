@@ -1,0 +1,40 @@
+# Hermes configuration. Everything here is non-secret.
+#
+# Secrets (the GraphN key, the Signal account) come from the `hermes-secrets`
+# Secret in the homelab repo, never from this file.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-config
+  namespace: hermes
+data:
+  config.yaml: |
+    # Every shell command, file operation and code execution runs in a sandbox
+    # microVM. There is no local fallback: if the sandbox API is down, commands
+    # fail rather than run on this host.
+    terminal:
+      backend: sandbox
+      cwd: /workspace
+      # A fresh sandbox per session. Hermes' own state lives on the PVC; only
+      # the workspace is disposable.
+      container_persistent: false
+
+    model:
+      provider: graphn
+      default: deepseek-v4.1-flash
+
+    providers:
+      graphn:
+        base_url: https://model.graphn.ai/v1
+        key_env: GRAPHN_API_KEY
+
+  # Non-secret runtime settings for the sandbox provider.
+  # The API is the in-cluster Service, not the Tailscale ingress: no TLS hop, no
+  # forwarded-header trust, and the NetworkPolicy names this namespace explicitly.
+  SANDBOX_API_URL: "http://api.sandbox-system.svc.cluster.local:3000"
+  SANDBOX_VERIFY_TLS: "false"
+  SANDBOX_TIER: "standard"
+  SANDBOX_IMAGE: "guest"
+  SANDBOX_MAX_COMMAND_SECONDS: "300"
+  SANDBOX_MIN_REMAINING_SECONDS: "60"
+  SANDBOX_CARRY_WORKSPACE: "true"
