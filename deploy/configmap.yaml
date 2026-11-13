@@ -19,6 +19,12 @@ data:
       # the workspace is disposable.
       container_persistent: false
 
+    # GraphN accepts reasoning_effort of none/low/high but rejects "medium",
+    # which is Hermes' default, with a generic 400 "the model rejected the
+    # request". Set explicitly; do not remove without re-testing.
+    agent:
+      reasoning_effort: "high"
+
     model:
       provider: graphn
       default: deepseek-v4.1-flash
@@ -31,7 +37,7 @@ data:
 
     providers:
       graphn:
-        base_url: http://127.0.0.1:9099/v1
+        base_url: https://model.graphn.ai/v1
         key_env: GRAPHN_API_KEY
         # Entry-level override, which backs every model this route serves. Hermes
         # otherwise detects the window from the endpoint (1M here) and derives the

@@ -43,7 +43,7 @@ spec:
       # uid 0, expected 10000". Fix the owner once, cheaply, at start.
       initContainers:
         - name: fix-ownership
-          image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.3
+          image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.4
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -68,7 +68,7 @@ spec:
             limits: {cpu: 500m, memory: 256Mi}
       containers:
         - name: hermes
-          image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.3
+          image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.4
           imagePullPolicy: IfNotPresent
           # The image entrypoint is s6's dispatcher; this is its main program.
           args: ["gateway", "run"]
@@ -181,26 +181,6 @@ spec:
             # JVM idle. Bursts during attachment upload.
             requests: {cpu: 50m, memory: 256Mi}
             limits: {cpu: "1", memory: 1Gi}
-        # Temporary: captures the outbound provider request so a 400 can be
-        # diagnosed. Supervised by the kubelet so it cannot die mid-capture.
-        - name: capture-proxy
-          image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.3
-          imagePullPolicy: IfNotPresent
-          command: ["/opt/hermes/.venv/bin/python", "/opt/hermes/tools/capture_proxy.py"]
-          env:
-            - name: CAPTURE_DIR
-              value: /capture
-            - name: CAPTURE_UPSTREAM
-              value: https://model.graphn.ai/v1
-          securityContext:
-            runAsUser: 10000
-            runAsGroup: 10000
-          volumeMounts:
-            - name: capture
-              mountPath: /capture
-          resources:
-            requests: {cpu: 10m, memory: 64Mi}
-            limits: {cpu: 500m, memory: 256Mi}
       terminationGracePeriodSeconds: 60
       volumes:
         - name: data
@@ -212,5 +192,3 @@ spec:
         - name: signal-cli
           persistentVolumeClaim:
             claimName: signal-cli-data
-        - name: capture
-          emptyDir: {}

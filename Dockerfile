@@ -33,6 +33,3 @@ COPY plugin.yaml /opt/hermes/plugins/sandbox/plugin.yaml
 RUN chmod -R a+rX,go-w /opt/hermes/plugins/sandbox
 
 USER hermes
-
-# Temporary diagnostic sidecar used to capture the exact provider request body.
-COPY deploy/proxy/capture_proxy.py /opt/hermes/tools/capture_proxy.py
