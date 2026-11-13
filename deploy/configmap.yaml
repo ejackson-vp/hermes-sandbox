@@ -29,8 +29,13 @@ data:
         key_env: GRAPHN_API_KEY
 
   # Non-secret runtime settings for the sandbox provider.
-  # The API is the in-cluster Service, not the Tailscale ingress: no TLS hop, no
-  # forwarded-header trust, and the NetworkPolicy names this namespace explicitly.
+  #
+  # TERMINAL_ENV is not redundant with terminal.backend above: `hermes config set
+  # terminal.backend` writes both this variable and the YAML key, and the
+  # terminal tool reads the variable. Setting only the YAML leaves the runtime
+  # free to fall back to `local`, which is the one outcome this deployment must
+  # not have.
+  TERMINAL_ENV: "sandbox"
   SANDBOX_API_URL: "http://api.sandbox-system.svc.cluster.local:3000"
   SANDBOX_VERIFY_TLS: "false"
   SANDBOX_TIER: "standard"
