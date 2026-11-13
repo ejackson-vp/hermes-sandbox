@@ -75,6 +75,9 @@ data:
   SANDBOX_MAX_COMMAND_SECONDS: "300"
   SANDBOX_MIN_REMAINING_SECONDS: "60"
   SANDBOX_CARRY_WORKSPACE: "true"
+  # HERMES_PAYER_KEY is deliberately absent: it is a private key, so it comes
+  # from the `hermes-payer-key` Secret in deployment.yaml, never from here. Set
+  # it only once the sandbox allowlists the derived address; see docs/setup.md.
 
   # signal-cli runs in the same pod network namespace, so this never leaves the
   # pod. SIGNAL_ACCOUNT and SIGNAL_ALLOWED_USERS come from the Secret once the

@@ -4,7 +4,8 @@
 # Flux Kustomization, so this overlay stays deployable on its own.
 #
 # Secrets are NOT created here. `hermes-secrets` must exist in the `hermes`
-# namespace before the pod starts; in the homelab it is SOPS-encrypted in
+# namespace before the pod starts, and `hermes-payer-key` too when a stable payer
+# address is allowlisted in the sandbox. In the homelab both are SOPS-encrypted in
 # apps/hermes-secrets/. See docs/setup.md.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization

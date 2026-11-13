@@ -23,6 +23,7 @@ Signal  ->  signal-cli (in-cluster)  ->  Hermes gateway  ->  GraphN
 | `CronJob/hermes-backup` | `hermes` | 03:17 UTC, 7 day retention |
 | `NetworkPolicy/default-deny`, `allow-hermes` | `hermes` | DNS, sandbox API on 3000, HTTPS egress |
 | `Secret/hermes-secrets` | `hermes` | SOPS-encrypted, in the homelab repo |
+| `Secret/hermes-payer-key` | `hermes` | optional stable payer key, SOPS-encrypted, own Secret |
 
 Hermes has no Service and no Ingress. It talks out, nothing talks in.
 
@@ -35,12 +36,14 @@ Hermes has no Service and no Ingress. It talks out, nothing talks in.
    homelab repo patches this in `apps/sandbox/release.yaml`; without it Hermes can
    resolve the Service and cannot connect.
 3. `hermes-secrets` exists with `graphn-api-key` and, once Signal is linked, the
-   Signal settings.
+   Signal settings. Optional: `hermes-payer-key` with `payer-key`, if the sandbox
+   allowlists a stable payer address (see below).
 
 ## Configuration
 
 Non-secret settings live in `deploy/configmap.yaml`: the provider backend, the
-API URL, tier and image. Secrets come from `hermes-secrets`.
+API URL, tier and image. Secrets come from `hermes-secrets`, and the optional
+payer key from `hermes-payer-key`.
 
 Hermes reads `config.yaml` once at startup. A ConfigMap change does **not** roll
 the pod (Reloader is scoped to `sandbox-system`), so after editing it:
@@ -48,6 +51,71 @@ the pod (Reloader is scoped to `sandbox-system`), so after editing it:
 ```bash
 kubectl -n hermes rollout restart deploy/hermes
 ```
+
+## Allowlisted payer (optional, needed before mainnet)
+
+Hermes normally pays each session from a wallet it creates on the spot, so the
+paying address changes every time and an allowlist cannot match it. Setting
+`HERMES_PAYER_KEY` fixes the address. In mock mode the payment carries no value
+and this changes nothing economically, but the stable address is what the
+sandbox operator needs before mainnet mode is enabled.
+
+1. Generate a key and read the address it controls:
+
+   ```bash
+   /opt/hermes/.venv/bin/python -c \
+     "from eth_account import Account; a = Account.create(); print(a.key.hex()); print(a.address)"
+   ```
+
+2. Put the key in its own Secret, never the ConfigMap:
+
+   ```bash
+   kubectl -n hermes create secret generic hermes-payer-key \
+     --from-literal=payer-key=0x<the 64 hex characters>
+   ```
+
+   In the homelab this is SOPS-encrypted next to `hermes-secrets`, so Flux owns it
+   and the value is never in git in the clear.
+
+3. `deploy/deployment.yaml` already reads `payer-key` from that Secret into
+   `HERMES_PAYER_KEY`, with `optional: true` so the pod starts without it. Restart
+   to pick the variable up:
+
+   ```bash
+   kubectl -n hermes rollout restart deploy/hermes
+   ```
+
+4. Read the address back from the running pod. This prints the address and never
+   the key:
+
+   ```bash
+   kubectl -n hermes exec deploy/hermes -- \
+     /opt/hermes/.venv/bin/python -m hermes_sandbox.payer_address
+   # <0x and 40 hex characters, EIP-55 checksummed>
+   ```
+
+   The provider's doctor row `sandbox payer` shows the same address, or
+   `ephemeral per session` when the variable is unset. A malformed key is a
+   `sandbox config` failure at startup, not a failure at the first create.
+
+5. Give the address to the sandbox operator. It must be on the sandbox payer
+   allowlist before mainnet mode is switched on.
+
+Rotate in this order: generate the new key, get its address allowlisted, then
+write the new value to the Secret and restart. Replacing the key first means
+creates arrive from an address the allowlist has never seen, so they are charged
+or refused.
+
+### Residual risk
+
+The key sits in the pod that runs Hermes, and Hermes is the host that runs
+model-authored commands. Code execution in that pod, or a prompt injection that
+reads the environment, gets the key and can mint payments from an allowlisted
+address. The allowlist is a payment bypass, not an authentication factor.
+
+So the entry it grants must be cheap to abuse: a low tier ceiling (`short`, or
+`standard` with a capped duration) and a low concurrency cap. One allowlisted
+address should buy a few small sandboxes, not a fleet.
 
 ## Verifying a deployment
 

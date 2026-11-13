@@ -140,6 +140,16 @@ spec:
                   name: hermes-secrets
                   key: github-token
                   optional: true
+            # Stable payer key, so the sandbox can allowlist one address instead
+            # of a new ephemeral one per create. Its own Secret: it is a private
+            # key with its own rotation. Optional, so the ephemeral default
+            # keeps working until the sandbox has that address on the allowlist.
+            - name: HERMES_PAYER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-payer-key
+                  key: payer-key
+                  optional: true
           ports:
             - name: gateway
               containerPort: 8765

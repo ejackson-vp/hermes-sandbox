@@ -64,10 +64,38 @@ are porting something:
 | `SANDBOX_MIN_REMAINING_SECONDS` | `60` | roll over before the lease gets thin |
 | `SANDBOX_CARRY_WORKSPACE` | `true` | archive and re-upload the workspace on rollover |
 | `SANDBOX_ENV_ALLOWLIST` | empty | the only host variables ever sent to the guest |
+| `HERMES_PAYER_KEY` | unset | 32-byte hex private key; makes the paying address stable so the sandbox can allowlist it |
 
 The host environment is never forwarded wholesale, and `strip_env_keys` removes
-`GRAPHN_API_KEY`, `OPENAI_API_KEY`, `CONTROLLER_ADMIN_TOKEN`, `CAPABILITY_SECRET`
-and every `SIGNAL_*` name from any subprocess the agent spawns.
+`GRAPHN_API_KEY`, `OPENAI_API_KEY`, `CONTROLLER_ADMIN_TOKEN`, `CAPABILITY_SECRET`,
+`HERMES_PAYER_KEY` and every `SIGNAL_*` name from any subprocess the agent spawns.
+
+### Allowlisted payer
+
+Set `HERMES_PAYER_KEY` and every session create is paid from the same address, so
+a sandbox operator can allowlist it and serve those sessions without payment.
+Unset, each create mints a new wallet, which no allowlist can match.
+
+```bash
+# generate: prints the key, then the address it controls
+python -c "from eth_account import Account; a = Account.create(); print(a.key.hex(), a.address)"
+# print the address for an existing key, and nothing else
+HERMES_PAYER_KEY=<hex> python -m hermes_sandbox.payer_address
+```
+
+The printer emits one line: `0x` plus 40 hex characters, EIP-55 checksummed.
+That is the value to hand to the sandbox operator, and it must be on the
+allowlist before mainnet mode is enabled. A malformed key fails config
+validation at startup, not the first payment.
+
+The key is a credential sitting on the host that runs untrusted agent commands,
+so treat the allowlist entry it grants as low trust: a low tier ceiling and a
+low concurrency cap, not a general-purpose bypass. `strip_env_keys` removes the
+variable from every subprocess the agent spawns, and `SANDBOX_ENV_ALLOWLIST`
+refuses to forward it to the guest.
+
+Deployment, rotation and the residual risk are in
+[docs/setup.md](docs/setup.md#allowlisted-payer-optional-needed-before-mainnet).
 
 ## Tests
 
