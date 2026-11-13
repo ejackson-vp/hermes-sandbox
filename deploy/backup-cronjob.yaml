@@ -37,24 +37,38 @@ spec:
                   mkdir -p "$dest"
                   echo "backup: $stamp -> $dest"
 
-                  # Consistent copies of every SQLite database, if the CLI is
-                  # present. A half-written WAL is the failure this avoids.
-                  found=0
-                  if command -v sqlite3 >/dev/null 2>&1; then
-                    for db in $(find /opt/data -name '*.db' -o -name '*.sqlite' 2>/dev/null); do
-                      rel=${db#/opt/data/}
-                      mkdir -p "$dest/$(dirname "$rel")"
-                      sqlite3 "$db" ".backup '${dest}/${rel}'" && found=$((found+1))
-                    done
-                    echo "backup: $found database(s) copied with sqlite3 .backup"
-                  fi
+                  # Consistent copies of every SQLite database. The image has no
+                  # sqlite3 CLI, but it does have Python, and the backup API is
+                  # safe against a live writer (unlike tar, which can capture a
+                  # torn WAL). state.db is the conversation history.
+                  /opt/hermes/.venv/bin/python - "$dest" <<'PY'
+                  import pathlib, sqlite3, sys
+                  dest, src = pathlib.Path(sys.argv[1]), pathlib.Path("/opt/data")
+                  copied = skipped = 0
+                  for db in sorted(list(src.rglob("*.db")) + list(src.rglob("*.sqlite"))):
+                      if "cache" in db.parts:
+                          continue
+                      target = dest / db.relative_to(src)
+                      target.parent.mkdir(parents=True, exist_ok=True)
+                      try:
+                          with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as reader, \
+                                  sqlite3.connect(target) as writer:
+                              reader.backup(writer)
+                          copied += 1
+                      except sqlite3.Error as exc:
+                          skipped += 1
+                          print(f"backup: skipped {db.name}: {exc}")
+                  print(f"backup: {copied} database(s) copied, {skipped} skipped")
+                  PY
 
                   # Everything else: config, cron definitions, skills, plugins.
+                  # Databases are excluded above, so a torn page cannot land here.
                   tar -czf "$dest/state.tar.gz" \
                     --exclude='*/cache' \
                     --exclude='*/.venv' \
                     --exclude='*.db' --exclude='*.db-wal' --exclude='*.db-shm' \
-                    -C /opt/data . || true
+                    --exclude='*.sqlite' \
+                    -C /opt/data . 2>/dev/null || true
                   echo "backup: archive $(du -h "$dest/state.tar.gz" | cut -f1)"
 
                   # Keep 7 days.
