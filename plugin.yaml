@@ -1,0 +1,5 @@
+name: sandbox
+version: 0.1.0
+description: Run Hermes terminal commands in an isolated x402 sandbox microVM
+kind: backend
+requires_hermes: ">=0.23.0"

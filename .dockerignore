@@ -1,0 +1,9 @@
+# Build context hygiene: keep the image to source only.
+.venv/
+tests/
+node_modules/
+.git/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
