@@ -75,9 +75,12 @@ spec:
                   find /backups -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec rm -rf {} +
                   echo "backup: done"
               volumeMounts:
+                # Not readOnly: opening a WAL-mode database in `mode=ro` still
+                # needs to create the -shm file beside it, so a read-only mount
+                # makes SQLite report "unable to open database file" for every
+                # database in WAL mode. This job only ever writes to /backups.
                 - name: data
                   mountPath: /opt/data
-                  readOnly: true
                 - name: backups
                   mountPath: /backups
               resources:
