@@ -54,7 +54,13 @@ def test_classification_flags():
 
 def test_credentials_are_stripped_from_spawned_subprocesses():
     stripped = make_provider().strip_env_keys
-    for name in ("GRAPHN_API_KEY", "OPENAI_API_KEY", "CONTROLLER_ADMIN_TOKEN", "SIGNAL_ACCOUNT"):
+    for name in (
+        "GRAPHN_API_KEY",
+        "OPENAI_API_KEY",
+        "CONTROLLER_ADMIN_TOKEN",
+        "SIGNAL_ACCOUNT",
+        "HERMES_PAYER_KEY",
+    ):
         assert name in stripped
 
 

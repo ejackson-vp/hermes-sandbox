@@ -43,6 +43,7 @@ class FakeClient:
         fail_on_exec: int | None = None,
     ):
         self.created: list[str] = []
+        self.create_kwargs: list[dict[str, Any]] = []
         self.destroyed: list[str] = []
         self.cancelled: list[tuple[str, str]] = []
         self.execs: list[dict[str, Any]] = []
@@ -63,6 +64,7 @@ class FakeClient:
         self._counter += 1
         session_id = f"sbx_{self._counter:03d}"
         self.created.append(session_id)
+        self.create_kwargs.append(dict(kwargs))
         return _session(session_id, self._lease_seconds)
 
     def wait_for_ready(self, session: SandboxSession, timeout_seconds: float = 60) -> dict[str, Any]:

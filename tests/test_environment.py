@@ -7,6 +7,7 @@ matters rather than a mock of it.
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 
 import pytest
@@ -218,6 +219,36 @@ def test_expiry_mid_command_retries_once_in_a_new_session():
     assert result["returncode"] == 0
     assert "second" in result["output"]
     assert len(client.created) == 2
+
+
+def test_rollover_passes_no_payer_by_default():
+    """Unset HERMES_PAYER_KEY must keep the ephemeral per-create wallet."""
+    client = FakeClient()
+    env = make_env(client)
+    try:
+        env.execute("true")
+        env._session.lease_expires_at = "2000-01-01T00:00:00.000Z"
+        env.execute("true")
+    finally:
+        env.cleanup()
+    assert [kwargs.get("payer") for kwargs in client.create_kwargs] == [None, None]
+
+
+def test_rollover_reuses_the_configured_payer():
+    """The same key, so the same address, on every create an environment makes."""
+    key = hashlib.sha256(b"hermes-sandbox payer key test fixture").hexdigest()
+    client = FakeClient()
+    env = make_env(client, HERMES_PAYER_KEY=key)
+    try:
+        env.execute("true")
+        env._session.lease_expires_at = "2000-01-01T00:00:00.000Z"
+        env.execute("true")
+    finally:
+        env.cleanup()
+    payers = [kwargs.get("payer") for kwargs in client.create_kwargs]
+    assert all(payer is not None for payer in payers)
+    assert len({payer.address for payer in payers}) == 1
+    assert env.describe()["payer"] == payers[0].address
 
 
 def test_describe_exposes_diagnostics():

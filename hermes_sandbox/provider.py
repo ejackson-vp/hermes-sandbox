@@ -39,6 +39,9 @@ STRIP_ENV_KEYS = frozenset(
         "SIGNAL_HOME_CHANNEL",
         "SIGNAL_ALLOW_ALL_USERS",
         "EVM_PRIVATE_KEY",
+        # The payer key signs the mock x402 payment. A model-authored command
+        # must never see it, even though the guest gets no host environment.
+        "HERMES_PAYER_KEY",
     }
 )
 
@@ -128,6 +131,8 @@ class SandboxProvider(TerminalEnvironmentProvider):
             "  https://sandbox-api.<tailnet>.ts.net              (from outside)",
             "Optional: SANDBOX_TIER (default standard), SANDBOX_IMAGE (default guest),",
             "  SANDBOX_MAX_COMMAND_SECONDS (default 300).",
+            "Optional: HERMES_PAYER_KEY, a 32-byte hex private key, so the paying",
+            "  address is stable and can be allowlisted in the sandbox.",
             "Verify with: python -m hermes_sandbox.smoke",
         ]
 
@@ -138,6 +143,20 @@ class SandboxProvider(TerminalEnvironmentProvider):
         rows: list[tuple[bool, str, str]] = []
         problems = cfg.validate()
         rows.append((not problems, "sandbox config", "; ".join(problems) or f"api={cfg.api_url} tier={cfg.tier}"))
+        # The address is public and is the thing an operator has to allowlist, so
+        # it is the useful half of this setting to print.
+        if cfg.payer_key is not None:
+            rows.append(
+                (
+                    True,
+                    "sandbox payer",
+                    f"stable address {cfg.payer_key.address} (it must be on the sandbox allowlist)",
+                )
+            )
+        elif cfg.payer_key_error:
+            rows.append((False, "sandbox payer", cfg.payer_key_error))
+        else:
+            rows.append((True, "sandbox payer", "ephemeral per session (HERMES_PAYER_KEY is not set)"))
 
         if importlib.util.find_spec("nacl") is None:
             rows.append((False, "sandbox crypto", "PyNaCl is not installed"))
@@ -197,12 +216,13 @@ class SandboxProvider(TerminalEnvironmentProvider):
             image=requested,
         )
         logger.info(
-            "sandbox environment created: task=%s cwd=%s image=%s tier=%s api=%s",
+            "sandbox environment created: task=%s cwd=%s image=%s tier=%s api=%s payer=%s",
             task_id,
             env.cwd,
             requested,
             cfg.tier,
             cfg.api_url,
+            cfg.payer_key.address if cfg.payer_key else "ephemeral",
         )
         return env
 

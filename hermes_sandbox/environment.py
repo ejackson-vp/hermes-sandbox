@@ -113,6 +113,8 @@ class SandboxEnvironment(BaseEnvironment):
             "tier": self.config.tier,
             "api_url": self.config.api_url,
             "cwd": self.cwd,
+            # None means the ephemeral default: a new wallet per create.
+            "payer": self.config.payer_key.address if self.config.payer_key else None,
         }
 
     # -------------------------------------------------------------- lifecycle
@@ -159,7 +161,7 @@ class SandboxEnvironment(BaseEnvironment):
             )
             self._destroy_quietly(previous)
 
-        session = self._client.create_session(**self.config.session_kwargs())
+        session = self._client.create_session(**self.config.session_kwargs(), payer=self.config.payer())
         self._owned.append(session.session_id)
         self._client.wait_for_ready(session, timeout_seconds=self.config.create_timeout_seconds)
         self._session = session

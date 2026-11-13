@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from eth_account import Account
@@ -27,6 +27,11 @@ from eth_account.messages import encode_defunct
 
 from .canonical import canonical_json
 from .crypto import b64encode, sha256_hex
+
+#: Optional 32-byte hex secp256k1 private key. When set, every create is paid
+#: from the same address, so a sandbox operator can allowlist it. Unset keeps the
+#: ephemeral per-session wallet.
+PAYER_KEY_ENV = "HERMES_PAYER_KEY"
 
 PAYMENT_VERSION = 2
 MOCK_NETWORK = "mock:local"
@@ -62,15 +67,89 @@ class Challenge:
     challenge_nonce: str
 
 
-class MockPayer:
-    """Signs mock payments and client commitments with one ephemeral wallet.
+class PayerKeyError(ValueError):
+    """``HERMES_PAYER_KEY`` is set but not a usable secp256k1 private key.
 
-    One payer is created per session create, so the paying address, the
-    commitment signer and the capability recipient all belong to the same client.
+    The message names the variable and the reason, never the value: this text
+    reaches logs, doctor output and tool results.
+    """
+
+
+@dataclass(frozen=True)
+class PayerKey:
+    """A validated payer private key that refuses to print itself.
+
+    The key is what makes the paying address stable, so an operator can allowlist
+    that address in the sandbox. It is also a credential: ``repr`` is redacted and
+    the bytes are only reachable through ``payer()``, because a config dump or an
+    exception handler is far more likely to print this object than to need it.
+    """
+
+    #: repr=False keeps the field out of the generated dataclass repr; the
+    #: explicit __repr__ below is the whole truth an operator ever sees.
+    _key: bytes = field(repr=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self._key, (bytes, bytearray)) or len(self._key) != 32:
+            raise PayerKeyError(f"{PAYER_KEY_ENV} must be a 32-byte private key")
+        _validate_scalar(bytes(self._key))
+
+    @classmethod
+    def parse(cls, raw: str) -> "PayerKey":
+        """Parse a hex key, with or without ``0x``, or raise ``PayerKeyError``."""
+        text = (raw or "").strip()
+        if not text:
+            raise PayerKeyError(f"{PAYER_KEY_ENV} is set but empty")
+        if text[:2].lower() == "0x":
+            text = text[2:]
+        if len(text) != 64:
+            raise PayerKeyError(
+                f"{PAYER_KEY_ENV} must be a 32-byte hex private key "
+                f"(64 hex characters, optional 0x prefix); got {len(text)} characters"
+            )
+        try:
+            key = bytes.fromhex(text)
+        except ValueError:
+            raise PayerKeyError(f"{PAYER_KEY_ENV} is not valid hexadecimal") from None
+        return cls(key)
+
+    @property
+    def address(self) -> str:
+        """The address that must be on the sandbox allowlist."""
+        return Account.from_key(self._key).address
+
+    def payer(self) -> "MockPayer":
+        """A payer bound to this key. The address is the same every call."""
+        return MockPayer(self._key)
+
+    def __repr__(self) -> str:
+        # Deliberately not the key. An address is public; a private key is not.
+        return f"PayerKey(address={self.address})"
+
+
+def _validate_scalar(key: bytes) -> None:
+    """Reject length-correct keys that cannot sign (zero, or past the curve order)."""
+    try:
+        Account.from_key(key)
+    except Exception:
+        # The library's own message can quote the key, so it is never chained.
+        raise PayerKeyError(f"{PAYER_KEY_ENV} is not a valid secp256k1 private key") from None
+
+
+class MockPayer:
+    """Signs mock payments and client commitments with one wallet.
+
+    A payer is ephemeral per session create unless one is injected, in which case
+    the paying address, the commitment signer and the capability recipient all
+    belong to the same stable client.
     """
 
     def __init__(self, private_key: bytes | None = None):
         self._account = Account.from_key(private_key or os.urandom(32))
+
+    def __repr__(self) -> str:
+        # The account holds the private key; only the address is safe to show.
+        return f"MockPayer(address={self._account.address})"
 
     @property
     def address(self) -> str:

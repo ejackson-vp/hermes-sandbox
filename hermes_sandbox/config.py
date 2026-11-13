@@ -10,6 +10,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
+from .payment import PAYER_KEY_ENV, MockPayer, PayerKey, PayerKeyError
+
 #: Tiers the platform exposes today (docs/resource-model.md).
 TIERS = ("short", "standard", "extended", "long", "custom")
 
@@ -49,6 +51,12 @@ class SandboxConfig:
     carry_workspace: bool = True
     #: Never send the host environment to the guest. Only these names are passed.
     env_allowlist: tuple[str, ...] = ()
+    #: Optional stable payer key. When set, every session create is paid from the
+    #: same address, which is what a sandbox allowlist matches on. repr=False and
+    #: a redacting PayerKey keep it out of logs and config dumps.
+    payer_key: PayerKey | None = field(default=None, repr=False)
+    #: Why a set key could not be used. Safe to show: it never contains the key.
+    payer_key_error: str | None = None
     # Above the controller's own ~90s provisioning timeout, so the platform
     # decides a cold start failed and refunds, instead of the client giving up
     # on a session that is about to become ready.
@@ -59,6 +67,7 @@ class SandboxConfig:
     def from_env(cls, env: dict[str, str] | None = None) -> SandboxConfig:
         source = dict(os.environ if env is None else env)
         allow = source.get("SANDBOX_ENV_ALLOWLIST", "")
+        payer_key, payer_key_error = _payer_key_from(source)
         return cls(
             api_url=source.get("SANDBOX_API_URL", cls.api_url),
             verify_tls=_bool(source.get("SANDBOX_VERIFY_TLS"), True),
@@ -72,6 +81,8 @@ class SandboxConfig:
             max_command_seconds=_int(source.get("SANDBOX_MAX_COMMAND_SECONDS"), 300),
             carry_workspace=_bool(source.get("SANDBOX_CARRY_WORKSPACE"), True),
             env_allowlist=tuple(name.strip() for name in allow.split(",") if name.strip()),
+            payer_key=payer_key,
+            payer_key_error=payer_key_error,
             create_timeout_seconds=float(_int(source.get("SANDBOX_CREATE_TIMEOUT_SECONDS"), 90)),
             request_timeout_seconds=float(_int(source.get("SANDBOX_REQUEST_TIMEOUT_SECONDS"), 120)),
         )
@@ -89,7 +100,21 @@ class SandboxConfig:
             problems.append("SANDBOX_DURATION_SECONDS is required when SANDBOX_TIER=custom")
         if self.max_command_seconds <= 0:
             problems.append("SANDBOX_MAX_COMMAND_SECONDS must be positive")
+        if PAYER_KEY_ENV in self.env_allowlist:
+            # The one way the key could reach a model-authored command: explicit
+            # operator opt-in to forward it. Refuse instead of honouring it.
+            problems.append(f"SANDBOX_ENV_ALLOWLIST must not include {PAYER_KEY_ENV}")
+        if self.payer_key_error:
+            problems.append(self.payer_key_error)
         return problems
+
+    def payer(self) -> MockPayer | None:
+        """The payer for every create: stable when a key is set, else ephemeral.
+
+        ``None`` means ``SandboxClient`` makes a fresh wallet per create, which is
+        the behaviour every deployment had before this option existed.
+        """
+        return self.payer_key.payer() if self.payer_key is not None else None
 
     def session_kwargs(self) -> dict:
         return {
@@ -108,3 +133,21 @@ def _optional_int(raw: str | None) -> int | None:
         return int(raw)
     except ValueError:
         return None
+
+
+def _payer_key_from(source: dict[str, str]) -> tuple[PayerKey | None, str | None]:
+    """Parse ``HERMES_PAYER_KEY`` into a validated key, or an error to report.
+
+    Parsing happens here, at config load, so a malformed key fails before the
+    first create rather than on the first payment. The error string is built from
+    the variable name and the reason only; ``from_env`` never raises so the
+    picker and doctor can render the problem instead of a traceback.
+    """
+    raw = source.get(PAYER_KEY_ENV, "")
+    if not raw.strip():
+        return None, None
+    try:
+        return PayerKey.parse(raw), None
+    except PayerKeyError as exc:
+        return None, str(exc)
+
