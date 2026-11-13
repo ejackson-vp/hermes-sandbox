@@ -39,7 +39,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: hermes
-          image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.1
+          image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.2
           imagePullPolicy: IfNotPresent
           # The image entrypoint is s6's dispatcher; this is its main program.
           args: ["gateway", "run"]
