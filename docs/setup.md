@@ -102,6 +102,33 @@ providers:
 `model.context_length` is scoped to the configured default route and did not
 take here; the startup log kept reporting `1000000 tokens (detected)`.
 
+### Every turn fails with `400 the model rejected the request`
+
+GraphN rejects `reasoning_effort: "medium"` with that generic message. Hermes
+sends `medium` by default. `none`, `low` and `high` are all accepted; only
+`medium` fails, for both `deepseek-v4.1-flash` and `qwen3-80b`.
+
+```yaml
+agent:
+  reasoning_effort: "high"
+```
+
+How this was pinned down, because the error names nothing: a supervised sidecar
+captured the outbound body, then the captured body was replayed against GraphN
+with one field removed at a time.
+
+| Body | Result |
+| --- | --- |
+| verbatim capture | 400 |
+| without `reasoning_effort` | 200 |
+| without `stream_options` | 400 |
+| without `tools` | 400 |
+| `reasoning_effort` = none / low / high | 200 |
+| `reasoning_effort` = medium | 400 |
+
+Curl-ing GraphN directly will not reproduce it if you omit `reasoning_effort`:
+the default chat request works, which is what makes this expensive to find.
+
 ### `no home channel`
 
 `SIGNAL_HOME_CHANNEL` is the delivery target for cron jobs and proactive
