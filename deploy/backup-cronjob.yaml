@@ -54,6 +54,12 @@ spec:
                           with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as reader, \
                                   sqlite3.connect(target) as writer:
                               reader.backup(writer)
+                          # A copy nobody checked is a guess. Fail the job rather
+                          # than keep a corrupt archive for seven days.
+                          with sqlite3.connect(f"file:{target}?mode=ro", uri=True) as verify:
+                              verdict = verify.execute("pragma integrity_check").fetchone()[0]
+                          if verdict != "ok":
+                              raise SystemExit(f"backup: {target.name} failed integrity_check: {verdict}")
                           copied += 1
                       except sqlite3.Error as exc:
                           skipped += 1
