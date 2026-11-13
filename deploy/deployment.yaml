@@ -74,6 +74,14 @@ spec:
                   name: hermes-secrets
                   key: signal-allowed-users
                   optional: true
+            # Default delivery target for cron jobs and proactive messages. Your
+            # own number means those land in the same Note to Self conversation.
+            - name: SIGNAL_HOME_CHANNEL
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-secrets
+                  key: signal-home-channel
+                  optional: true
           ports:
             - name: gateway
               containerPort: 8765
