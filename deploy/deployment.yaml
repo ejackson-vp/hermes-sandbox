@@ -114,6 +114,14 @@ spec:
                   name: hermes-secrets
                   key: signal-home-channel
                   optional: true
+            # Read by the GitHub MCP server config, and by nothing else. It never
+            # reaches the sandbox: the guest has no environment from the host.
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-secrets
+                  key: github-token
+                  optional: true
           ports:
             - name: gateway
               containerPort: 8765

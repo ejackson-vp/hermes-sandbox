@@ -44,6 +44,16 @@ data:
         args: ["/opt/hermes/tools/mcp_kubectl.py"]
         trust: untrusted
         timeout: 90
+      # GitHub's hosted MCP server. The PAT is fine-grained and scoped to
+      # personal repositories only, so work-org resources are unreachable even
+      # if the token leaks. 28 of its 46 tools are annotated readOnlyHint, so
+      # the trust gate prompts for the other 18 and nothing else.
+      github:
+        url: https://api.githubcopilot.com/mcp/
+        headers:
+          Authorization: "Bearer ${GITHUB_TOKEN}"
+        trust: untrusted
+        timeout: 120
 
     providers:
       graphn:
