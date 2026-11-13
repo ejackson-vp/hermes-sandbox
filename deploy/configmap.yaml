@@ -104,4 +104,9 @@ data:
       work around it.
     - Never copy a credential, kubeconfig or token into the sandbox, and never ask
       the user to paste one into a command.
+    - Keep cluster reads small. For "is it healthy" use `output=name` or a
+      selector and one namespace at a time; do not pull `-o json` for a whole
+      namespace or list every pod across the cluster unless the user asks for
+      that detail. A full-cluster sweep costs more tokens than the answer is
+      worth.
     - To prove where a command ran, read the hostname: guests are `sbx-...`.
