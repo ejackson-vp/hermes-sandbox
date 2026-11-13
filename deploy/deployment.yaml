@@ -59,6 +59,21 @@ spec:
                   name: hermes-secrets
                   key: graphn-api-key
                   optional: true
+            # Only these senders are answered. Groups stay off: no
+            # SIGNAL_GROUP_ALLOWED_USERS, which is the default and the right one
+            # for a personal assistant.
+            - name: SIGNAL_ACCOUNT
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-secrets
+                  key: signal-account
+                  optional: true
+            - name: SIGNAL_ALLOWED_USERS
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-secrets
+                  key: signal-allowed-users
+                  optional: true
           ports:
             - name: gateway
               containerPort: 8765
@@ -105,7 +120,15 @@ spec:
           # has no business being.
           image: ghcr.io/ejackson-vp/signal-cli:0.14.10
           imagePullPolicy: IfNotPresent
-          command: ["sleep", "infinity"]
+          # The image entrypoint is `signal-cli --config /var/lib/signal-cli`, so
+          # these are its arguments. HTTP is bound inside the pod's loopback:
+          # nothing outside the pod can reach the daemon.
+          args:
+            - "--account"
+            - "+18013002620"
+            - "daemon"
+            - "--http"
+            - "127.0.0.1:8080"
           env:
             # The volume is fsGroup 10000, so run as that group rather than the
             # image's own uid and let it write the account database.
