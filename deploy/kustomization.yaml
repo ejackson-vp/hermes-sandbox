@@ -16,6 +16,7 @@ resources:
   - pvc.yaml
   - configmap.yaml
   - deployment.yaml
+  - rbac.yaml
   - networkpolicy.yaml
   - backup-cronjob.yaml
 

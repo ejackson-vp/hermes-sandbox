@@ -18,6 +18,9 @@ spec:
     metadata:
       labels: {app: hermes}
     spec:
+      # Holds the cluster credential, reachable only through the MCP tools.
+      serviceAccountName: hermes-agent
+      automountServiceAccountToken: true
       # s6-overlay runs as root, chowns /opt/data and then drops every supervised
       # service to uid 10000 itself. Pod-level runAsNonRoot would break the
       # chown, so the drop is the image's job and this is deliberate.
@@ -43,7 +46,7 @@ spec:
       # uid 0, expected 10000". Fix the owner once, cheaply, at start.
       initContainers:
         - name: fix-ownership
-          image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.4
+          image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.5
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -68,7 +71,7 @@ spec:
             limits: {cpu: 500m, memory: 256Mi}
       containers:
         - name: hermes
-          image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.4
+          image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.5
           imagePullPolicy: IfNotPresent
           # The image entrypoint is s6's dispatcher; this is its main program.
           args: ["gateway", "run"]

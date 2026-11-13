@@ -35,6 +35,16 @@ data:
       # 128k is more than a personal assistant needs and keeps the sum safe.
       context_length: 131072
 
+    # Cluster access as a tool, not as a credential in the sandbox. `trust:
+    # untrusted` makes Hermes ask in Signal before any tool that is not
+    # annotated read-only, which is every write and the secret read.
+    mcp_servers:
+      kube:
+        command: /opt/hermes/.venv/bin/python
+        args: ["/opt/hermes/tools/mcp_kubectl.py"]
+        trust: untrusted
+        timeout: 90
+
     providers:
       graphn:
         base_url: https://model.graphn.ai/v1

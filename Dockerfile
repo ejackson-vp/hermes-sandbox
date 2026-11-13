@@ -17,6 +17,17 @@ RUN /opt/hermes/.venv/bin/python -m ensurepip --upgrade >/dev/null \
     && /opt/hermes/.venv/bin/python -m pip install --no-cache-dir "eth-account>=0.13,<1" \
     && /opt/hermes/.venv/bin/python -c "from eth_account import Account; print('eth-account ready')"
 
+# kubectl for the cluster MCP server. Pinned by version and checksum: the binary
+# runs with the pod's ServiceAccount, so it is part of the trust boundary.
+ARG KUBECTL_VERSION=v1.37.2
+ARG KUBECTL_SHA256=c04487523e7aa7d1493f7808174c899db93d7a9cf57531420cd76b9bd415f8f4
+RUN curl -fsSL -o /usr/local/bin/kubectl \
+        "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
+    && echo "${KUBECTL_SHA256}  /usr/local/bin/kubectl" | sha256sum -c - \
+    && chmod 0755 /usr/local/bin/kubectl
+
+COPY deploy/mcp/mcp_kubectl.py /opt/hermes/tools/mcp_kubectl.py
+
 # The provider package goes into site-packages so `import hermes_sandbox` works
 # from any plugin context, and the plugin directory stays a thin shim.
 COPY pyproject.toml /tmp/build/pyproject.toml

@@ -1,0 +1,48 @@
+# Cluster access for the Hermes pod.
+#
+# The agent's own shell commands run in the sandbox and get none of this: the
+# token lives in the Hermes pod and is only reachable through the MCP tools, so
+# a command in the guest has no path to the API server and no credential.
+#
+# Full cluster-admin by request. The compensating control is that every
+# state-changing tool is unannotated, so Hermes' `trust: untrusted` gate asks in
+# Signal before each call. Secret reads are treated the same way for the same
+# reason: they are the highest-value read in the cluster.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hermes-agent
+  namespace: hermes
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hermes-agent-cluster-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: hermes-agent
+    namespace: hermes
+---
+# Cilium-specific, and required: with kubeProxyReplacement=false the in-cluster
+# Service IP is DNAT'ed to a node IP before egress policy is evaluated, so a
+# plain ipBlock for 10.96.0.1 does not match. `toEntities: kube-apiserver` is
+# the identity Cilium resolves for exactly this case.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-hermes-kube-apiserver
+  namespace: hermes
+spec:
+  endpointSelector:
+    matchLabels: {app: hermes}
+  egress:
+    - toEntities: ["kube-apiserver"]
+      toPorts:
+        - ports:
+            - {port: "443", protocol: TCP}
+            - {port: "6443", protocol: TCP}
