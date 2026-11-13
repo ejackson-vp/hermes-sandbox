@@ -74,7 +74,7 @@ State and image are independent, so a restore never needs a matching image.
      securityContext: {fsGroup: 10000}
      containers:
        - name: restore
-         image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.0
+         image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.2
          command: ["sleep", "3600"]
          volumeMounts:
            - {name: data, mountPath: /opt/data}
