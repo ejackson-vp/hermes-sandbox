@@ -28,11 +28,6 @@ data:
     model:
       provider: graphn
       default: deepseek-v4.1-flash
-      # GraphN advertises a very large window and Hermes derives the output
-      # budget from it, so prompt + budget must stay under the real ceiling
-      # (measured between 800k and 1.6M). 256k holds the 59 MCP tool schemas
-      # plus a working conversation without compacting every turn.
-      context_length: 131072
 
     # Cluster access as a tool, not as a credential in the sandbox. `trust:
     # untrusted` makes Hermes ask in Signal before any tool that is not
@@ -58,9 +53,11 @@ data:
       graphn:
         base_url: https://model.graphn.ai/v1
         key_env: GRAPHN_API_KEY
-        # Entry-level override, which backs every model this route serves. Hermes
-        # otherwise detects the window from the endpoint (1M here) and derives the
-        # output budget from it, and GraphN then rejects prompt plus budget.
+        # The only context_length: Hermes reads the per-route entry, not
+        # model.context_length (tried, ignored, logged "1M (detected)").
+        # Prompt + output budget must stay under GraphN's real ceiling, measured
+        # between 800k and 1.6M. 256k holds the 59 MCP tool schemas plus a
+        # working conversation without compacting every turn.
         context_length: 262144
 
   # Non-secret runtime settings for the sandbox provider.
