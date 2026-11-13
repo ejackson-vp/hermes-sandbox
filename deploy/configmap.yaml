@@ -21,7 +21,7 @@ data:
 
     model:
       provider: graphn
-      default: deepseek-v4.1-flash
+      default: qwen3-80b
       # GraphN advertises a very large window and Hermes otherwise derives the
       # output budget from it, so a ~20k prompt plus a ~1M max_tokens was
       # rejected with "the request exceeds this model's context window":
