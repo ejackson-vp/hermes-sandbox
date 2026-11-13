@@ -33,6 +33,10 @@ data:
       graphn:
         base_url: https://model.graphn.ai/v1
         key_env: GRAPHN_API_KEY
+        # Entry-level override, which backs every model this route serves. Hermes
+        # otherwise detects the window from the endpoint (1M here) and derives the
+        # output budget from it, and GraphN then rejects prompt plus budget.
+        context_length: 131072
 
   # Non-secret runtime settings for the sandbox provider.
   #
