@@ -27,7 +27,13 @@ spec:
             fsGroup: 10000
           containers:
             - name: backup
-              image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.0
+              image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.2
+              # Same uid as the gateway: a root-owned file left in the state
+              # directory makes the CLI refuse to start, and this is the only
+              # other writer.
+              securityContext:
+                runAsUser: 10000
+                runAsGroup: 10000
               command: ["/bin/sh", "-c"]
               args:
                 - |

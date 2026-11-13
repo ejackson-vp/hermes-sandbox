@@ -37,6 +37,31 @@ spec:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
           effect: NoSchedule
+      # local-path gives the volume a root-owned directory, and s6's own chown is
+      # best-effort, so the state directory can stay root-owned with mode 0777.
+      # The gateway runs anyway but `hermes` CLI invocations refuse: "owned by
+      # uid 0, expected 10000". Fix the owner once, cheaply, at start.
+      initContainers:
+        - name: fix-ownership
+          image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.2
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              if [ "$(stat -c %u /opt/data)" != "10000" ]; then
+                echo "chowning /opt/data to 10000:10000"
+                chown -R 10000:10000 /opt/data
+              fi
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 500m, memory: 256Mi}
       containers:
         - name: hermes
           image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.2
