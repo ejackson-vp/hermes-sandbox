@@ -77,6 +77,37 @@ kubectl -n hermes exec deploy/hermes -- /opt/hermes/.venv/bin/python -c \
 The provider's own `doctor_checks()` (config, API reachability, image offered)
 are still correct and are what a non-container install shows.
 
+## Troubleshooting
+
+### `400 the model rejected the request` / `the request exceeds this model's context window`
+
+GraphN advertises a very large window (Hermes detects 1,000,000 tokens) and
+Hermes derives its output budget from that number. GraphN then validates
+`prompt + max_tokens <= window`, so a ~20k prompt plus a ~1M budget is rejected
+and the first turn 400s.
+
+Measured: the ceiling for `deepseek-v4.1-flash` sits between 800k and 1.6M
+prompt tokens with a small budget, so 1M is roughly the real window. The fix is to
+stop asking for the whole window as output:
+
+```yaml
+providers:
+  graphn:
+    base_url: https://model.graphn.ai/v1
+    key_env: GRAPHN_API_KEY
+    context_length: 131072   # entry-level; backs every model on this route
+```
+
+`context_length` must be on the **provider entry**, not under `model`.
+`model.context_length` is scoped to the configured default route and did not
+take here; the startup log kept reporting `1000000 tokens (detected)`.
+
+### `no home channel`
+
+`SIGNAL_HOME_CHANNEL` is the delivery target for cron jobs and proactive
+messages. Without it those have nowhere to send. It belongs in the secret next to
+`signal-account`, set to your own number so they land in Note to Self.
+
 ## The one manual step: Signal linking
 
 Account linking cannot be automated; it is a QR scan against your phone. Run this
