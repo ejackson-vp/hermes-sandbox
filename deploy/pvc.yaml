@@ -29,3 +29,18 @@ spec:
   resources:
     requests:
       storage: 5Gi
+---
+# signal-cli's account data. This directory IS a credential: it can send as you.
+# Kept off the hermes-data claim on purpose, so it is not swept into the nightly
+# archive, and so re-linking is a deliberate act rather than a silent restore.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: signal-cli-data
+  namespace: hermes
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 1Gi

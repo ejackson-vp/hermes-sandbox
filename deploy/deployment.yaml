@@ -95,6 +95,29 @@ spec:
             timeoutSeconds: 30
             # Generous: a busy turn must not be mistaken for a hang.
             failureThreshold: 3
+
+        # signal-cli in the same pod, so Hermes reaches it on 127.0.0.1:8080 and
+        # nothing is exposed: no Service, no ingress, no NetworkPolicy ingress
+        # rule. It idles until the QR is scanned, then runs the HTTP daemon.
+        - name: signal-cli
+          image: ghcr.io/ejackson-vp/signal-cli:0.14.10
+          imagePullPolicy: IfNotPresent
+          command: ["sleep", "infinity"]
+          env:
+            # The volume is fsGroup 10000, so run as that group rather than the
+            # image's own uid and let it write the account database.
+            - name: HOME
+              value: /var/lib/signal-cli
+          securityContext:
+            runAsUser: 10000
+            runAsGroup: 10000
+          volumeMounts:
+            - name: signal-cli
+              mountPath: /var/lib/signal-cli
+          resources:
+            # JVM idle. Bursts during attachment upload.
+            requests: {cpu: 50m, memory: 256Mi}
+            limits: {cpu: "1", memory: 1Gi}
       terminationGracePeriodSeconds: 60
       volumes:
         - name: data
@@ -103,3 +126,6 @@ spec:
         - name: config
           configMap:
             name: hermes-config
+        - name: signal-cli
+          persistentVolumeClaim:
+            claimName: signal-cli-data
