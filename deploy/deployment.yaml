@@ -151,6 +151,10 @@ spec:
               mountPath: /opt/data/config.yaml
               subPath: config.yaml
               readOnly: true
+            - name: config
+              mountPath: /opt/data/SOUL.md
+              subPath: SOUL.md
+              readOnly: true
           resources:
             # Sized for a 13.5 GiB control-plane node that also runs etcd.
             requests: {cpu: 200m, memory: 768Mi}
