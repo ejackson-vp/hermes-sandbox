@@ -35,10 +35,14 @@ def _build_kubeconfig() -> str | None:
     path = "/tmp/kubeconfig-hermes.yaml"
     if os.path.exists(path):
         return path
-    host, port = os.environ.get("KUBERNETES_SERVICE_HOST"), os.environ.get("KUBERNETES_SERVICE_PORT")
+    # Do not trust the process environment: Hermes sanitises what it hands a
+    # stdio MCP child, so KUBERNETES_SERVICE_HOST can be absent even though the
+    # pod has it. The in-cluster DNS name is always correct inside a pod.
+    host = os.environ.get("KUBERNETES_SERVICE_HOST") or "kubernetes.default.svc"
+    port = os.environ.get("KUBERNETES_SERVICE_PORT") or "443"
     token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
     ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-    if not (host and port and os.path.exists(token_path)):
+    if not os.path.exists(token_path):
         return None
     with open(token_path, encoding="utf-8") as handle:
         token = handle.read().strip()
@@ -63,7 +67,10 @@ def _build_kubeconfig() -> str | None:
 def run_kubectl(args: list[str]) -> tuple[bool, str]:
     kubeconfig = _build_kubeconfig()
     if kubeconfig is None:
-        return False, "no in-cluster ServiceAccount token; check automountServiceAccountToken"
+        return False, (
+            "no ServiceAccount token at /var/run/secrets/kubernetes.io/serviceaccount/token; "
+            "check that the pod runs as ServiceAccount hermes-agent with automountServiceAccountToken"
+        )
     argv = ["kubectl", f"--kubeconfig={kubeconfig}", *args]
     try:
         completed = subprocess.run(

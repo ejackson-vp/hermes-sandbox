@@ -46,7 +46,7 @@ spec:
       # uid 0, expected 10000". Fix the owner once, cheaply, at start.
       initContainers:
         - name: fix-ownership
-          image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.5
+          image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.6
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -89,7 +89,7 @@ spec:
             limits: {cpu: 500m, memory: 256Mi}
       containers:
         - name: hermes
-          image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.5
+          image: ghcr.io/ejackson-vp/hermes-sandbox:0.1.6
           imagePullPolicy: IfNotPresent
           # The image entrypoint is s6's dispatcher; this is its main program.
           args: ["gateway", "run"]
