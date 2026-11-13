@@ -100,7 +100,11 @@ spec:
         # nothing is exposed: no Service, no ingress, no NetworkPolicy ingress
         # rule. It idles until the QR is scanned, then runs the HTTP daemon.
         - name: signal-cli
-          image: ghcr.io/ejackson-vp/signal-cli:0.14.10
+          # Same public package as the agent, different tag. GHCR packages are
+          # private by default and the visibility API is not available for this
+          # account, so a second package would need a second manual toggle. Move
+          # this to its own package once that is convenient.
+          image: ghcr.io/ejackson-vp/hermes-sandbox:signal-cli-0.14.10
           imagePullPolicy: IfNotPresent
           command: ["sleep", "infinity"]
           env:
