@@ -18,17 +18,50 @@ Requirement: `SIGNAL_ACCOUNT` must be your own E.164 number.
 Account linking is a QR scan. It cannot be automated and the credentials must
 never be committed.
 
+**Run it detached inside the container.** This is the part that wastes an
+afternoon if you get it wrong. Do not hold the link open under `kubectl exec`:
+when that session is torn down the provisioning socket dies mid-handshake and
+the phone reports the unhelpful `Linking device failed / Invalid response from
+service`. The daemon was healthy every time.
+
 ```bash
-kubectl -n hermes exec -it deploy/hermes -- signal-cli link -n "HermesAgent"
+POD=$(kubectl -n hermes get pod -l app=hermes -o jsonpath='{.items[0].metadata.name}')
+kubectl -n hermes exec -c signal-cli "$POD" -- sh -c '
+  nohup signal-cli --verbose --config /var/lib/signal-cli \
+    link -n HermesAgent > /var/lib/signal-cli/link.log 2>&1 &
+  echo started'
 ```
 
-Open Signal on the phone, Settings -> Linked Devices -> Link New Device, and scan.
+The log's first line is the `sgnl://linkdevice?...` URI. signal-cli only draws a
+QR when stdout is a terminal, so render one from the URI:
+
+```bash
+kubectl -n hermes exec -c signal-cli "$POD" -- \
+  grep -o 'sgnl://[^ ]*' /var/lib/signal-cli/link.log | head -1
+python3 -c "import qrcode,sys; qr=qrcode.QRCode(border=3,box_size=18); \
+  qr.add_data(sys.argv[1]); qr.make(fit=True); \
+  qr.make_image().save('signal-link-qr.png')" '<the uri>'
+```
+
+Scan with Signal -> Settings -> Linked Devices -> Link New Device.
+
+Two things that bite:
+
+- **Signal rate-limits link attempts** to roughly one a minute. Repeated failures
+  produce a cooldown message on the phone, and the URI expires while you wait.
+  Generate the QR, then scan it immediately, once.
+- **`pkill -f "signal-cli .* link"` inside the container kills your own `sh -c`**,
+  because the pattern matches that shell's argv. Use `pgrep -x java` and kill by
+  pid if you need to clear a stale attempt.
+
+After a successful scan the log ends with `Associated with: +<number>`.
 
 Verify:
 
 ```bash
-kubectl -n hermes exec deploy/hermes -- signal-cli --account "$SIGNAL_ACCOUNT" listAccounts
-curl -s http://127.0.0.1:8080/api/v1/check   # from inside the pod
+kubectl -n hermes exec -c signal-cli "$POD" -- \
+  signal-cli --config /var/lib/signal-cli listAccounts
+kubectl -n hermes exec -c signal-cli "$POD" -- curl -s localhost:8080/api/v1/check
 ```
 
 signal-cli keeps its session data in `~/.local/share/signal-cli` on
