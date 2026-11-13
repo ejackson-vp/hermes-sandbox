@@ -21,7 +21,7 @@ data:
 
     model:
       provider: graphn
-      default: qwen3-80b
+      default: deepseek-v4.1-flash
       # GraphN advertises a very large window and Hermes otherwise derives the
       # output budget from it, so a ~20k prompt plus a ~1M max_tokens was
       # rejected with "the request exceeds this model's context window":
@@ -31,7 +31,7 @@ data:
 
     providers:
       graphn:
-        base_url: http://127.0.0.1:9099/v1
+        base_url: https://model.graphn.ai/v1
         key_env: GRAPHN_API_KEY
         # Entry-level override, which backs every model this route serves. Hermes
         # otherwise detects the window from the endpoint (1M here) and derives the
