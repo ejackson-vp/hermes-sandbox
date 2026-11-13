@@ -50,10 +50,14 @@ spec:
             - -c
             - |
               set -eu
+              # Hermes refuses a state directory it does not own, and refuses one
+              # writable by anyone else. local-path delivers root:root 0777.
               if [ "$(stat -c %u /opt/data)" != "10000" ]; then
                 echo "chowning /opt/data to 10000:10000"
                 chown -R 10000:10000 /opt/data
               fi
+              # Idempotent and cheap: one directory, not a tree walk.
+              chmod go-w /opt/data
           securityContext:
             runAsUser: 0
           volumeMounts:
