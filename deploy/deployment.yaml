@@ -61,11 +61,29 @@ spec:
               fi
               # Idempotent and cheap: one directory, not a tree walk.
               chmod go-w /opt/data
+
+              # Hermes resolves ${VAR} in MCP url/headers from this profile's
+              # .env, not from the process environment, so the GitHub token has
+              # to be written here. Rewritten on every start, so rotating the
+              # Secret is enough. The file is never mounted into the sandbox.
+              if [ -f /secrets/github-token ]; then
+                token=$(cat /secrets/github-token)
+                touch /opt/data/.env
+                grep -v '^GITHUB_TOKEN=' /opt/data/.env > /opt/data/.env.tmp || true
+                printf 'GITHUB_TOKEN=%s\n' "$token" >> /opt/data/.env.tmp
+                mv /opt/data/.env.tmp /opt/data/.env
+                chown 10000:10000 /opt/data/.env
+                chmod 600 /opt/data/.env
+                echo "seeded GITHUB_TOKEN into .env"
+              fi
           securityContext:
             runAsUser: 0
           volumeMounts:
             - name: data
               mountPath: /opt/data
+            - name: github-token
+              mountPath: /secrets
+              readOnly: true
           resources:
             requests: {cpu: 10m, memory: 32Mi}
             limits: {cpu: 500m, memory: 256Mi}
@@ -203,3 +221,10 @@ spec:
         - name: signal-cli
           persistentVolumeClaim:
             claimName: signal-cli-data
+        - name: github-token
+          secret:
+            secretName: hermes-secrets
+            optional: true
+            items:
+              - key: github-token
+                path: github-token
