@@ -49,7 +49,10 @@ class SandboxConfig:
     carry_workspace: bool = True
     #: Never send the host environment to the guest. Only these names are passed.
     env_allowlist: tuple[str, ...] = ()
-    create_timeout_seconds: float = 90.0
+    # Above the controller's own ~90s provisioning timeout, so the platform
+    # decides a cold start failed and refunds, instead of the client giving up
+    # on a session that is about to become ready.
+    create_timeout_seconds: float = 150.0
     request_timeout_seconds: float = 120.0
 
     @classmethod

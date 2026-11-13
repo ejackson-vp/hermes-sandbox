@@ -62,8 +62,20 @@ kubectl -n hermes exec deploy/hermes -- /opt/hermes/bin/hermes --help 2>/dev/nul
 kubectl -n hermes exec deploy/hermes -- /opt/hermes/bin/hermes doctor
 ```
 
-`hermes doctor` includes three sandbox rows: config, API reachability with the
-image list, and whether `SANDBOX_IMAGE` is one the platform offers.
+`hermes doctor` does **not** show these rows inside a container: its terminal
+check forces the backend to `local` before consulting plugins, so a plugin
+backend is never probed. Verify the provider directly instead:
+
+```bash
+kubectl -n hermes exec deploy/hermes -- /opt/hermes/.venv/bin/python -c \
+  "from hermes_cli.plugins_activation import activate_plugin_now; \
+   activate_plugin_now('sandbox', in_process=True); \
+   import agent.terminal_env_registry as r; print(r.plugin_backend_names())"
+# expect: ['sandbox']
+```
+
+The provider's own `doctor_checks()` (config, API reachability, image offered)
+are still correct and are what a non-container install shows.
 
 ## The one manual step: Signal linking
 
