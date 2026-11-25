@@ -112,6 +112,14 @@ spec:
             # Only these senders are answered. Groups stay off: no
             # SIGNAL_GROUP_ALLOWED_USERS, which is the default and the right one
             # for a personal assistant.
+            # HMAC key for the alert webhook route. Created by the private
+            # deployment (apps/hermes-secrets) and shared with the receiver;
+            # without it the route's secret stays the literal ${...} string.
+            - name: HERMES_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-alert-receiver
+                  key: hermes-webhook-secret
             - name: SIGNAL_ACCOUNT
               valueFrom:
                 secretKeyRef:
@@ -151,8 +159,12 @@ spec:
                   key: payer-key
                   optional: true
           ports:
-            - name: gateway
-              containerPort: 8765
+            # The webhook platform. 8765 was declared here and never bound by
+            # anything; the listener that admits an agent turn is the webhook
+            # platform, which binds extra.port (8644) when it is enabled in
+            # config.yaml. The receiver's Service targets 8644 by number.
+            - name: webhook
+              containerPort: 8644
               protocol: TCP
           volumeMounts:
             - name: data
