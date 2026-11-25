@@ -1,17 +1,18 @@
-"""Mock x402 payment + client commitment, ported from the TypeScript SDK.
-
-The homelab runs ``PAYMENT_MODE=mock`` (``network: mock:local``). Mock payments
-have no economic value: the client signs a real EIP-712 EIP-3009
-``TransferWithAuthorization`` with an ephemeral wallet, and the server verifies the
-signature rather than moving any money. Nothing here is a bypass; the public x402
-flow is unchanged and any other mock client takes the same path.
+"""x402 payment + client commitment, ported from the TypeScript SDK.
 
 Two signatures are required by ``api/src/use-cases/create-session-stages.ts``:
 
-1. the EIP-712 authorisation, carrying the payment;
+1. an EIP-712 EIP-3009 ``TransferWithAuthorization`` carrying the payment;
 2. an EIP-191 "client commitment" over a canonical JSON message that binds the
    paying wallet to *this* client's public key and the server's single-use
    ``challengeNonce``. Without (2) the server answers ``401 client_proof_required``.
+
+The homelab runs ``PAYMENT_MODE=mainnet``. An address on the sandbox payer
+allowlist never reaches verification or settlement: the API recovers the address
+from the commitment, checks the allowlist, and returns before any facilitator
+call. ``HERMES_PAYER_KEY`` is what keeps that address stable. With the ephemeral
+default the address changes every create, is never allowlisted, and the mock
+domain authorisation is rejected by mainnet verification.
 """
 
 from __future__ import annotations

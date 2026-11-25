@@ -39,7 +39,7 @@ STRIP_ENV_KEYS = frozenset(
         "SIGNAL_HOME_CHANNEL",
         "SIGNAL_ALLOW_ALL_USERS",
         "EVM_PRIVATE_KEY",
-        # The payer key signs the mock x402 payment. A model-authored command
+        # The payer key signs the x402 authorisation. A model-authored command
         # must never see it, even though the guest gets no host environment.
         "HERMES_PAYER_KEY",
     }

@@ -2,7 +2,7 @@
 
 Every value comes from the environment so it can be set from a ConfigMap/Secret
 without rebuilding the image. Defaults match the homelab deployment: in-cluster
-ClusterIP, mock payments, one pinned guest image.
+ClusterIP, x402 payments, one pinned guest image.
 """
 
 from __future__ import annotations

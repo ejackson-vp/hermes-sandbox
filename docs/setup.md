@@ -52,13 +52,15 @@ the pod (Reloader is scoped to `sandbox-system`), so after editing it:
 kubectl -n hermes rollout restart deploy/hermes
 ```
 
-## Allowlisted payer (optional, needed before mainnet)
+## Allowlisted payer (required on mainnet)
 
 Hermes normally pays each session from a wallet it creates on the spot, so the
 paying address changes every time and an allowlist cannot match it. Setting
-`HERMES_PAYER_KEY` fixes the address. In mock mode the payment carries no value
-and this changes nothing economically, but the stable address is what the
-sandbox operator needs before mainnet mode is enabled.
+`HERMES_PAYER_KEY` fixes the address. The sandbox is on mainnet, and an
+allowlisted address is granted a free session before the facilitator is called:
+the client commitment proves the address, the allowlist decides, and no USDC is
+verified or settled. Without a stable key every create falls through to real
+mainnet verification, which rejects the mock-domain authorisation.
 
 1. Generate a key and read the address it controls:
 
@@ -99,7 +101,7 @@ sandbox operator needs before mainnet mode is enabled.
    `sandbox config` failure at startup, not a failure at the first create.
 
 5. Give the address to the sandbox operator. It must be on the sandbox payer
-   allowlist before mainnet mode is switched on.
+   allowlist before the key is deployed.
 
 Rotate in this order: generate the new key, get its address allowlisted, then
 write the new value to the Secret and restart. Replacing the key first means
